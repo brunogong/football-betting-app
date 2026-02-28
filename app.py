@@ -1,110 +1,99 @@
 import streamlit as st
 import requests
-import pandas as pd
 
-# --- CONFIGURAZIONE INTERFACCIA ---
-st.set_page_config(page_title="AI Football Scanner", layout="wide", page_icon="⚽")
+# --- CONFIGURAZIONE PAGINA ---
+st.set_page_config(page_title="AI Odds Strategy Scanner", layout="wide")
+st.title("📊 Betting Value & Strategy Scanner")
 
-# Titolo e Stile
-st.title("⚽ Live Strategy Football Scanner")
-st.markdown("Analisi predittiva per **BTTS**, **Late Goal** e **Lay the Draw**.")
+# --- PARAMETRI ---
+API_KEY = "27593156a4d63edc49b283e86937f0e9"
+REGIONS = 'eu' # Mercati europei
+MARKETS = 'h2h,totals' # h2h per Lay the Draw, totals per Over/Under
+ODDS_FORMAT = 'decimal'
 
-# --- SIDEBAR (IMPOSTAZIONI) ---
-st.sidebar.header("⚙️ Configurazione")
-# Inseriamo la tua chiave API come default
-api_key_input = st.sidebar.text_input("RapidAPI Key", value="396e380fa1mshf7c7a1309bbd354p1d80a0jsn289c1b466a49", type="password")
-api_key = api_key_input.strip()
+# --- SIDEBAR ---
+st.sidebar.header("⚙️ Filtri Strategia")
+bankroll = st.sidebar.number_input("Bankroll Totale (€)", value=100.0)
+min_odds_draw = st.sidebar.slider("Quota minima Pareggio (Lay)", 3.0, 5.0, 3.4)
 
-bankroll = st.sidebar.number_input("Budget Totale (€)", min_value=10.0, value=100.0, step=10.0)
-
-# Elenco Campionati con ID API-Football
+# Mappa campionati (The Odds API usa nomi specifici)
 leagues = {
-    "Olanda - Eerste Divisie": 89,
-    "Norvegia - Eliteserien": 269,
-    "Giappone - J1 League": 98,
-    "Islanda - Urvalsdeild": 172,
-    "Brasile - Serie A": 71,
-    "Italia - Serie A": 135,
-    "Inghilterra - Premier League": 39
+    "Olanda - Eredivisie": "soccer_netherlands_ereerste_divisie",
+    "Norvegia - Eliteserien": "soccer_norway_eliteserien",
+    "Italia - Serie A": "soccer_italy_serie_a",
+    "Inghilterra - Premier League": "soccer_league_premier_league",
+    "Brasile - Serie A": "soccer_brazil_campeonato",
+    "Giappone - J1 League": "soccer_japan_j_league"
 }
-selected_league_name = st.selectbox("🎯 Scegli il campionato da scansionare:", list(leagues.keys()))
-league_id = leagues[selected_league_name]
+selected_league = st.selectbox("🎯 Scegli il campionato:", list(leagues.keys()))
+sport_key = leagues[selected_league]
 
-# --- LOGICA API CON CACHING ---
-@st.cache_data(ttl=3600) # Salva i dati per 1 ora per non sprecare i 100 crediti/giorno
-def fetch_matches(api_key, league_id, season):
-    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-    headers = {
-        "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+# --- FUNZIONE RECUPERO QUOTE ---
+def get_odds(sport):
+    url = f"https://api.the-odds-api.com/v1/sports/{sport}/odds/"
+    params = {
+        'apiKey': API_KEY,
+        'regions': REGIONS,
+        'markets': MARKETS,
+        'oddsFormat': ODDS_FORMAT
     }
-    # Chiediamo i prossimi 10 match
-    params = {"league": league_id, "season": season, "next": 10}
+    response = requests.get(url, params=params)
+    return response.status_code, response.json()
+
+# --- ANALISI ---
+if st.button("🔍 SCANSIONA MERCATI"):
+    status, data = get_odds(sport_key)
     
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        return response.status_code, response.json()
-    except Exception as e:
-        return 500, str(e)
-
-# --- BOTTONE DI AVVIO ---
-if st.button("🚀 AVVIA SCANSIONE MATCH"):
-    # Tentativo 1: Stagione 2026
-    status, data = fetch_matches(api_key, league_id, 2026)
-    
-    # Tentativo 2: Se 2026 è vuoto, prova 2025
-    if status == 200 and (not data.get('response') or len(data['response']) == 0):
-        status, data = fetch_matches(api_key, league_id, 2025)
-
-    # --- SEZIONE DEBUG (In caso di errore) ---
-    with st.expander("🛠️ Log Tecnico (Debug)"):
-        st.write(f"**Status Code:** {status}")
-        st.json(data)
-        if status == 403:
-            st.error("ERRORE 403: Assicurati di aver cliccato 'Subscribe' sul piano FREE di API-Football su RapidAPI.")
-
-    # --- VISUALIZZAZIONE RISULTATI ---
-    if status == 200 and data.get('response'):
-        matches = data['response']
-        st.subheader(f"Prossimi match in {selected_league_name}")
+    if status == 200:
+        st.subheader(f"Analisi quote in tempo reale: {selected_league}")
         
-        for match in matches:
-            home = match['teams']['home']['name']
-            away = match['teams']['away']['name']
-            match_id = match['fixture']['id']
-            date = match['fixture']['date'][:10]
+        for match in data:
+            home_team = match['home_team']
+            away_team = match['away_team']
             
-            with st.container():
-                st.markdown(f"### 🏟️ {home} vs {away} ({date})")
-                
+            # Estrazione quote (usiamo il primo bookmaker disponibile per semplicità)
+            if not match['bookmakers']: continue
+            
+            bookie = match['bookmakers'][0] # Prende il primo bookie della lista
+            h2h_market = next((m for m in bookie['markets'] if m['key'] == 'h2h'), None)
+            totals_market = next((m for m in bookie['markets'] if m['key'] == 'totals'), None)
+            
+            with st.expander(f"🏟️ {home_team} vs {away_team}"):
                 c1, c2, c3 = st.columns(3)
                 
+                # 1. LAY THE DRAW
                 with c1:
-                    st.info("**🔥 BTTS / Over 2.5**")
-                    # Calcolo Stake (2% prudenziale)
-                    stake = round(bankroll * 0.02, 2)
-                    st.write(f"Probabilità: **Alta**")
-                    st.success(f"Stake consigliato: {stake}€")
-                
-                with c2:
-                    st.warning("**🕒 Late Goal Strategy**")
-                    st.write("Attendi il minuto 70'.")
-                    st.write("Entra se quota > **1.85**")
-                
-                with c3:
-                    st.error("**📉 Lay The Draw**")
-                    st.write("Pareggio poco probabile.")
-                    st.write("Strategia: **Bancare X**")
-                
-                st.divider()
-    else:
-        st.warning("Nessun match trovato. Controlla il log di debug per dettagli.")
+                    st.markdown("### 📉 Lay the Draw")
+                    if h2h_market:
+                        draw_price = next((o['price'] for o in h2h_market['outcomes'] if o['name'] == 'Draw'), None)
+                        st.write(f"Quota Pareggio: **{draw_price}**")
+                        if draw_price and draw_price >= min_odds_draw:
+                            st.success("✅ CONSIGLIATO: Quota ideale per bancare.")
+                        else:
+                            st.warning("⚠️ Quota troppo bassa per Lay.")
 
-# --- FOOTER ---
+                # 2. OVER 2.5 / BTTS
+                with c2:
+                    st.markdown("### 🔥 Over 2.5 Strategy")
+                    if totals_market:
+                        over_25 = next((o['price'] for o in totals_market['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), None)
+                        st.write(f"Quota Over 2.5: **{over_25 if over_25 else 'N/A'}**")
+                        if over_25 and over_25 < 1.80:
+                            st.info("Trend Over confermato dai Bookie.")
+
+                # 3. STAKE & VALUE (Kelly)
+                with c3:
+                    st.markdown("### 💰 Gestione Stake")
+                    stake = round(bankroll * 0.02, 2)
+                    st.write(f"Stake suggerito (2%): **{stake}€**")
+                    st.write("Strategia: **Prudenziale**")
+                    
+    elif status == 401:
+        st.error("Chiave API non valida. Verifica l'email di The Odds API.")
+    else:
+        st.error(f"Errore {status}: {data}")
+
 st.sidebar.divider()
-st.sidebar.markdown("""
-**Come usare l'app:**
-1. Seleziona il campionato.
-2. Clicca su Avvia Scansione.
-3. Se vedi errore 403, attiva il piano free su RapidAPI.
-""")
+st.sidebar.write("📌 **Note Strategiche:**")
+st.sidebar.caption("- Lay the Draw: Banca se la quota è > 3.40.")
+st.sidebar.caption("- Late Goal: Se il match è 0-0 al 75', punta Over 0.5.")
