@@ -81,11 +81,15 @@ if leagues:
                         st.subheader(f"{home} vs {away}")
                         c1, c2, c3 = st.columns([1, 1, 1])
                         with c1:
-                            if over_q <= max_over_odds: st.success(f"OVER 2.5: {over_q}")
+                            if over_q <= max_over_odds: 
+                                st.success(f"OVER 2.5: {over_q}")
+                                st.write(f"**Punta: {user_stake:.2f}€**")
                         with c2:
                             if min_draw_lay <= draw_q <= max_draw_lay:
                                 st.error(f"LAY DRAW: {draw_q}")
-                                st.metric("Resp.", f"{(draw_q-1)*user_stake:.2f}€")
+                                liability = (draw_q - 1) * user_stake
+                                st.metric("Resp. (Rischio)", f"{liability:.2f}€")
+                                st.write(f"**Banca: {user_stake:.2f}€**")
                         with c3:
                             term = urllib.parse.quote(f"{home} {away}")
                             st.link_button("BETFAIR", f"https://www.betfair.it/exchange/plus/football/search?searchTerm={term}")
