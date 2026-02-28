@@ -39,7 +39,6 @@ def get_all_leagues():
     url = f"https://api.the-odds-api.com/v4/sports?apiKey={API_KEY}"
     try:
         r = requests.get(url)
-        # Filtriamo solo il calcio (Soccer)
         return {s['title']: s['key'] for s in r.json() if s.get('group') == "Soccer"}
     except:
         return {}
@@ -71,8 +70,7 @@ hours_ahead = st.sidebar.number_input("FILTRO ORE (Inizio Match)", value=24)
 all_leagues = get_all_leagues()
 
 if all_leagues:
-    # Il menu a tendina ora contiene decine di campionati
-    sel_league_name = st.selectbox("SELEZIONA IL CAMPIONATO (Tutti i disponibili):", list(all_leagues.keys()))
+    sel_league_name = st.selectbox("SELEZIONA IL CAMPIONATO:", list(all_leagues.keys()))
     sel_league_key = all_leagues[sel_league_name]
 
     if st.button("ESEGUI SCANSIONE SMART"):
@@ -90,17 +88,14 @@ if all_leagues:
                 bookies = match.get('bookmakers', [])
                 if len(bookies) < 2: continue
                 
-                # Cerchiamo Betfair (solitamente tra i primi, se no cerchiamo l'indice)
                 m2 = next((b['markets'] for b in bookies if b['key'].lower() in ['betfair', 'betfair_ex', 'pinnacle']), bookies[1]['markets'])
                 
-                # Quote e Probabilità
                 q_d_b = next((o['price'] for m in m2 if m['key'] == 'h2h' for o in m['outcomes'] if o['name'] == 'Draw'), 0)
                 q_o_b = next((o['price'] for m in m2 if m['key'] == 'totals' for o in m['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), 0)
                 
                 prob_draw = round((1/q_d_b)*100, 1) if q_d_b > 0 else 100
                 prob_over = round((1/q_o_b)*100, 1) if q_o_b > 0 else 0
 
-                # FILTRO SMART
                 is_good_over = prob_over >= 55
                 is_good_lay = prob_draw <= 25
 
@@ -115,6 +110,7 @@ if all_leagues:
                                 st.write("📉 LAY DRAW")
                                 liability = (q_d_b - 1) * target_stake
                                 st.metric("PERDITA (RISCHIO)", f"-{liability:.2f} €")
+                                st.metric("VINCITA NETTA", f"+{target_stake:.2f} €")
                                 st.write(f"📊 Probabilità: {prob_draw}%")
                             else:
                                 st.write("❌ Lay Draw: Sotto requisito")
@@ -124,18 +120,20 @@ if all_leagues:
                                 st.write("⚽ OVER 2.5")
                                 profit_net = (q_o_b * target_stake) - target_stake
                                 st.metric("PERDITA (RISCHIO)", f"-{target_stake:.2f} €")
+                                st.metric("VINCITA NETTA", f"+{profit_net:.2f} €")
                                 st.write(f"📊 Probabilità: {prob_over}%")
                             else:
                                 st.write("❌ Over 2.5: Sotto requisito")
 
                         with col3:
                             st.write(f"⏰ {commence_time.strftime('%H:%M')} UTC")
+                            st.write(f"Quota D: {q_d_b} | Quota O: {q_o_b}")
                             q_url = urllib.parse.quote(f"{match['home_team']} {match['away_team']}")
                             st.link_button("APRI BETFAIR", f"https://www.betfair.it/exchange/plus/football/search?searchTerm={q_url}")
 
             if found == 0:
-                st.warning("Nessun match con probabilità sufficiente trovato in questo campionato.")
+                st.warning("Nessun match con probabilità sufficiente trovato.")
         else:
-            st.error("Errore nel recupero dati. Riprova tra poco.")
+            st.error("Errore nel recupero dati.")
 else:
-    st.error("Impossibile caricare i campionati. Controlla la connessione o l'API Key.")
+    st.error("Impossibile caricare i campionati.")
