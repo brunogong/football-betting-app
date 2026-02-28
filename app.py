@@ -3,14 +3,24 @@ import requests
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
-# --- 1. CONFIGURAZIONE ---
-st.set_page_config(page_title="ALPHA SCANNER - RISK CONTROL", layout="wide")
+# --- 1. CONFIGURAZIONE ESTETICA (TESTO GIALLO) ---
+st.set_page_config(page_title="ALPHA SCANNER - CLEAR PROFIT", layout="wide")
 
-# CSS per evidenziare il Rischio
 st.markdown("""
     <style>
-    .stMetric { background-color: #111827; border: 1px solid #374151; padding: 15px; border-radius: 10px; }
+    /* Riquadri neri con bordo grigio e testo giallo per i valori */
+    .stMetric { 
+        background-color: #000000; 
+        border: 2px solid #4B5563; 
+        padding: 15px; 
+        border-radius: 10px; 
+    }
+    /* Colore giallo per etichette e valori delle metriche */
+    [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
+        color: #FFFF00 !important;
+    }
     .stAlert { border-radius: 10px; }
+    h3 { color: #FFFFFF; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -19,22 +29,21 @@ API_KEY = "27593156a4d63edc49b283e86937f0e9"
 # --- 2. HEADER ---
 c1, c2 = st.columns([3, 1])
 with c1:
-    st.title("🛡️ Risk-Control Trader")
-    st.caption("Focus esclusivo sulla Responsabilità (Liability) e capitale impegnato.")
+    st.title("🛡️ Trader: Controllo Perdite & Profitti")
+    st.caption("Visualizzazione semplificata: Giallo su Nero per massima leggibilità.")
 with c2:
-    st.metric("UTC TIME", datetime.now(timezone.utc).strftime("%H:%M"))
+    st.metric("ORARIO UTC", datetime.now(timezone.utc).strftime("%H:%M"))
 
 # --- 3. SIDEBAR: MONEY MANAGEMENT ---
-st.sidebar.header("🕹️ SETTINGS")
-bankroll = st.sidebar.number_input("CAPITALE DISPONIBILE (€)", value=500.0, step=50.0)
-stake_pct = st.sidebar.slider("STAKE TARGET (%)", 0.5, 5.0, 2.0)
-# Questo è l'importo base che vuoi vincere (o puntare)
+st.sidebar.header("🕹️ IMPOSTAZIONI")
+bankroll = st.sidebar.number_input("IL TUO BUDGET TOTALE (€)", value=500.0, step=50.0)
+stake_pct = st.sidebar.slider("QUANTO VUOI PUNTARE/VINCERE (%)", 0.5, 10.0, 2.0)
 target_stake = (bankroll * stake_pct) / 100
 
 st.sidebar.divider()
 val_diff_draw = st.sidebar.slider("Soglia Valore Pareggio", 0.10, 1.00, 0.25)
 val_diff_over = st.sidebar.slider("Soglia Valore Over 2.5", 0.05, 0.50, 0.10)
-hours_filter = st.sidebar.number_input("Orizzonte Ore", value=4)
+hours_filter = st.sidebar.number_input("Mostra match entro (ore)", value=4)
 
 # --- 4. FUNZIONI API ---
 @st.cache_data(ttl=3600)
@@ -59,7 +68,7 @@ leagues_dict = get_leagues()
 if leagues_dict:
     sel_league = st.selectbox("Seleziona Campionato:", list(leagues_dict.keys()))
     
-    if st.button("ANALIZZA RISCHIO MERCATI"):
+    if st.button("CALCOLA PERDITE E PROFITTI"):
         status, data = get_data(leagues_dict[sel_league])
         
         if status == 200 and data:
@@ -77,11 +86,13 @@ if leagues_dict:
 
                 m1, m2 = bookies[0]['markets'], bookies[1]['markets']
                 
-                # Quote Draw
+                # Quote Draw (Pareggio)
                 q_d_m = next((o['price'] for m in m1 if m['key'] == 'h2h' for o in m['outcomes'] if o['name'] == 'Draw'), 0)
                 q_d_b = next((o['price'] for m in m2 if m['key'] == 'h2h' for o in m['outcomes'] if o['name'] == 'Draw'), 0)
                 
                 # Quote Over 2.5
+                q_o_m = next((o['price'] for m in b1_m if m['key'] == 'totals' for o in m['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), 0 if 'b1_m' not in locals() else 0)
+                # Nota: b1_m e b2_m sono m1 e m2 in questo loop
                 q_o_m = next((o['price'] for m in m1 if m['key'] == 'totals' for o in m['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), 0)
                 q_o_b = next((o['price'] for m in m2 if m['key'] == 'totals' for o in m['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), 0)
 
@@ -91,35 +102,35 @@ if leagues_dict:
                         st.subheader(f"{home} vs {away}")
                         col1, col2, col3 = st.columns(3)
                         
-                        # --- COLONNA LAY (BANCA) ---
+                        # --- COLONNA BANCA (LAY) ---
                         with col1:
-                            st.markdown("### 📉 BANCA PAREGGIO")
+                            st.markdown("### 📉 BANCA PAREGGIO (Rosa)")
                             if (q_d_b - q_d_m) >= val_diff_draw:
-                                # CALCOLO RISCHIO VERO (Responsabilità)
                                 liability = (q_d_b - 1) * target_stake
-                                st.error("⚠️ AZIONE: BANCA (Rosa)")
-                                st.metric("RISCHIO EFFETTIVO", f"{liability:.2f} €")
-                                st.caption(f"Quota: {q_d_b} | Se vinci: +{target_stake:.2f}€")
+                                st.error("STRATEGIA: BANCA")
+                                st.metric("SE PERDI (PERDITA)", f"-{liability:.2f} €")
+                                st.metric("SE VINCI (PROFITTO NETTO)", f"+{target_stake:.2f} €")
+                                st.caption(f"Quota Betfair: {q_d_b}")
                             else:
-                                st.info("Nessun Gap di valore")
+                                st.info("Nessun valore trovato")
 
-                        # --- COLONNA BACK (PUNTA) ---
+                        # --- COLONNA PUNTA (BACK) ---
                         with col2:
-                            st.markdown("### ⚽ PUNTA OVER 2.5")
+                            st.markdown("### ⚽ PUNTA OVER 2.5 (Blu)")
                             if (q_o_b - q_o_m) >= val_diff_over:
-                                # CALCOLO RISCHIO VERO (Lo Stake stesso)
-                                st.success("✅ AZIONE: PUNTA (Blu)")
-                                st.metric("RISCHIO EFFETTIVO", f"{target_stake:.2f} €")
-                                potential = (q_o_b * target_stake) - target_stake
-                                st.caption(f"Quota: {q_o_b} | Se vinci: +{potential:.2f}€")
+                                profit_net = (q_o_b * target_stake) - target_stake
+                                st.success("STRATEGIA: PUNTA")
+                                st.metric("SE PERDI (PERDITA)", f"-{target_stake:.2f} €")
+                                st.metric("SE VINCI (PROFITTO NETTO)", f"+{profit_net:.2f} €")
+                                st.caption(f"Quota Betfair: {q_o_b}")
                             else:
-                                st.info("Nessun Gap di valore")
+                                st.info("Nessun valore trovato")
 
-                        # --- AZIONE ---
+                        # --- PULSANTE ---
                         with col3:
                             st.write("")
                             q_url = urllib.parse.quote(f"{home} {away}")
                             st.link_button("VAI AL MERCATO", f"https://www.betfair.it/exchange/plus/football/search?searchTerm={q_url}")
 
             if found == 0:
-                st.warning("Nessun match trovato con i criteri di rischio impostati.")
+                st.warning("Nessun match imminente con segnali validi.")
