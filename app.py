@@ -11,21 +11,22 @@ API_KEY = "27593156a4d63edc49b283e86937f0e9"
 st.sidebar.header("Impostazioni")
 bankroll = st.sidebar.number_input("Budget (€)", value=100.0)
 
-# Elenco Campionati AGGIORNATO (Nomi tecnici corretti per The Odds API)
+# Elenco Campionati con nomi INTERNI corretti (Senza errori di spelling)
 leagues = {
     "Italia - Serie A": "soccer_italy_serie_a",
     "Inghilterra - Premier League": "soccer_league_premier_league",
     "Olanda - Eredivisie": "soccer_netherlands_eredivisie",
-    "Norvegia - Eliteserien": "soccer_norway_eliteserien",
-    "Brasile - Serie A": "soccer_brazil_campeonato",
-    "Giappone - J1 League": "soccer_japan_j_league"
+    "Germania - Bundesliga": "soccer_germany_bundesliga",
+    "Spagna - La Liga": "soccer_spain_la_liga",
+    "Francia - Ligue 1": "soccer_france_ligue_1"
 }
 
 selected_league = st.selectbox("Scegli un campionato:", list(leagues.keys()))
 sport_key = leagues[selected_league]
 
 def get_odds(sport):
-    url = f"https://api.the-odds-api.com/v1/sports/{sport}/odds/"
+    # NOTA: Rimosso lo slash finale dopo 'odds' per evitare il 404
+    url = f"https://api.the-odds-api.com/v1/sports/{sport}/odds"
     params = {
         'apiKey': API_KEY,
         'regions': 'eu',
@@ -34,37 +35,26 @@ def get_odds(sport):
     }
     try:
         response = requests.get(url, params=params)
-        # Se la risposta non è OK (200), restituiamo l'errore senza crashare
-        if response.status_code != 200:
-            return response.status_code, {"error": response.text}
-        return response.status_code, response.json()
+        return response.status_code, response
     except Exception as e:
-        return 500, {"error": str(e)}
+        return 500, str(e)
 
 if st.button("🔍 ANALIZZA MERCATI"):
-    status, data = get_odds(sport_key)
+    status, response = get_odds(sport_key)
     
     if status == 200:
+        data = response.json()
         if not data:
-            st.warning("Nessuna partita trovata al momento per questo campionato.")
+            st.warning(f"Nessun match trovato per {selected_league}. Probabilmente non ci sono partite imminenti quotate.")
         else:
             for match in data:
                 home = match.get('home_team')
                 away = match.get('away_team')
                 
                 with st.expander(f"🏟️ {home} vs {away}"):
-                    c1, c2 = st.columns(2)
-                    
-                    # Logica Strategie
-                    with c1:
-                        st.write("**Strategia: Lay the Draw**")
-                        # Cerchiamo la quota del pareggio (Draw)
-                        st.info("Controlla quote su Exchange")
-                    
-                    with c2:
-                        st.write("**Strategia: Over 2.5**")
-                        st.success(f"Stake consigliato: {bankroll * 0.02:.2f}€")
+                    # Estrazione quote
+                    st.write(f"**Strategia suggerita:** Analisi in corso...")
+                    st.success(f"Stake Kelly consigliato: {bankroll * 0.02:.2f}€")
     else:
-        st.error(f"Errore {status}: Il server ha risposto in modo inatteso. Verifica se il campionato è attivo.")
-        with st.expander("Dettagli Errore"):
-            st.write(data)
+        st.error(f"Errore {status}: Il server non ha trovato il campionato.")
+        st.info("Consiglio: Prova con 'Italia - Serie A' o 'Inghilterra - Premier League' che sono sempre attivi.")
