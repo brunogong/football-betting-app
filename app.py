@@ -5,7 +5,7 @@ import pandas as pd
 # Configurazione Pagina
 st.set_page_config(page_title="AI Football Strategy", layout="wide")
 
-st.title("? Football Strategy Scanner")
+st.title("⚽ Football Strategy Scanner")
 st.sidebar.header("Impostazioni")
 
 # Inserimento Chiave API
@@ -20,7 +20,7 @@ leagues = {
     "Brasile - Serie A": 71
 }
 selected_league = st.selectbox("Scegli un campionato da analizzare:", list(leagues.keys()))
-bankroll = st.sidebar.number_input("Il tuo Budget (�)", value=100.0)
+bankroll = st.sidebar.number_input("Il tuo Budget (€)", value=100.0)
 
 def get_data(league_id):
     url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
@@ -35,21 +35,21 @@ def get_data(league_id):
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.header("?? BTTS & Over")
+    st.header("🔥 BTTS & Over")
     st.info("Cerca: Squadre con difese aperte e attacchi costanti.")
     # Esempio di visualizzazione
     st.write("**Match:** Ajax vs PSV")
-    st.write("Probabilit� BTTS: 72%")
-    st.success("Consiglio: Puntare 4.50� (Kelly)")
+    st.write("Probabilità BTTS: 72%")
+    st.success("Consiglio: Puntare 4.50€ (Kelly)")
 
 with col2:
-    st.header("?? Late Goal (75'+)")
+    st.header("🕒 Late Goal (75'+)")
     st.info("Match ideali per il 'Live Betting'.")
     st.write("**Match:** Molde vs Bodo/Glimt")
     st.warning("Trend: 40% dei gol segnati nel finale.")
 
 with col3:
-    st.header("?? Lay the Draw")
+    st.header("📉 Lay the Draw")
     st.info("Pochi pareggi storici tra queste squadre.")
     st.write("**Match:** Kawasaki Frontale vs Urawa")
     st.error("Prob. Pareggio: 12% - Strategia Valida")
